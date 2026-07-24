@@ -32,15 +32,15 @@ jobs:
           export PATH="/home/bubbles/.dotnet:$PATH"
           TKMM_VERSION="${{ github.ref_name }}"
           TKMM_VERSION="${TKMM_VERSION%%-rev-nx*}"
-          rm -rf releases && mkdir -p releases
+          rm -rf release && mkdir -p release
           rm -rf target/*
           DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 scripts/clean tkmm
-          DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 scripts/clean samba
+          # DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 scripts/clean samba
           DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 scripts/clean linux
           DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 scripts/clean busybox
           DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 scripts/clean initramfs
           THREADCOUNT=20 DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 TKMM_VERSION="$TKMM_VERSION" make image
-          mv target/* releases/
+          mv target/* release/
           echo "success=true" >> $GITHUB_OUTPUT
 
       - name: Build debug image
@@ -83,37 +83,31 @@ jobs:
     runs-on: bubbles
     
     steps:
-      - name: Upload to mirror
+      - name: Prepare release assets
         working-directory: /home/bubbles/TKMM-NX
         run: |
-          scp -i ~/.ssh/github_runner_sftp_key releases/* ubuntu@repo.tkmm.org:/var/www/html/repo/.tkmm-nx/Releases
-          scp -i ~/.ssh/github_runner_sftp_key debug/* ubuntu@repo.tkmm.org:/var/www/html/repo/.tkmm-nx/Debug
+          mkdir -p github-release
+          cp release/*.zip github-release/tkmm-nx.zip
+          cp release/update.tar github-release/update.tar
 
-      - name: Normalize zip file name for GitHub release
-        working-directory: /home/bubbles/TKMM-NX
-        run: |
-          mv releases/*.system releases/SYSTEM
-          mv releases/*.zip releases/tkmm-nx.zip
-
-      - name: Create Checksum File
-        working-directory: /home/bubbles/TKMM-NX
-        run: |
-          md5=($(md5sum -b releases/SYSTEM))
-          echo $md5 > releases/SYSTEM.checksum
-
-      - name: Upload Release Assets
+      - name: Upload release to GitHub
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.github_token }}
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            /home/bubbles/TKMM-NX/releases/SYSTEM
-            /home/bubbles/TKMM-NX/releases/SYSTEM.checksum
-            /home/bubbles/TKMM-NX/releases/tkmm-nx.zip
-            /home/bubbles/TKMM-NX/releases/update.tar
+            /home/bubbles/TKMM-NX/github-release/tkmm-nx.zip
+            /home/bubbles/TKMM-NX/github-release/update.tar
+
+      - name: Upload images to mirror
+        working-directory: /home/bubbles/TKMM-NX
+        run: |
+          scp -i ~/.ssh/github_runner_sftp_key release/* ubuntu@repo.tkmm.org:/var/www/html/repo/.tkmm-nx/Releases
+          scp -i ~/.ssh/github_runner_sftp_key debug/* ubuntu@repo.tkmm.org:/var/www/html/repo/.tkmm-nx/Debug
 
       - name: Cleanup Folders
         run: |
-          rm -rf /home/bubbles/TKMM-NX/releases
+          rm -rf /home/bubbles/TKMM-NX/github-release
+          rm -rf /home/bubbles/TKMM-NX/release
           rm -rf /home/bubbles/TKMM-NX/debug
