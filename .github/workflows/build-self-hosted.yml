@@ -41,26 +41,9 @@ jobs:
           THREADCOUNT=20 DISTRO=TKMM PROJECT=L4T DEVICE=Switch ARCH=aarch64 TKMM_VERSION="$TKMM_VERSION" make image
           mv target/* release/
 
-  create-release:
-    name: Create Release
+  release:
+    name: Create and Upload GitHub Release
     needs: build-release
-    runs-on: ubuntu-latest
-    permissions: write-all
-
-    steps:
-      - name: Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.github_token }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: TKMM-NX - ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-
-  upload-github:
-    name: Upload to GitHub
-    needs: [build-release, create-release]
     permissions: write-all
     runs-on: bubbles
 
@@ -71,22 +54,18 @@ jobs:
           cp release/*.zip github-release/tkmm-nx.zip
           cp release/update.tar github-release/update.tar
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.github_token }}
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name }}
+          name: TKMM-NX - ${{ github.ref_name }}
+          working_directory: /home/bubbles/TKMM-NX/github-release
           files: |
-            /home/bubbles/TKMM-NX/github-release/tkmm-nx.zip
-            /home/bubbles/TKMM-NX/github-release/update.tar
-
-      - name: Cleanup GitHub staging
-        run: rm -rf github-release
+            tkmm-nx.zip
+            update.tar
 
   build-debug:
     name: Build Debug Image
-    needs: upload-github
+    needs: release
     permissions: write-all
     runs-on: bubbles
 
@@ -102,8 +81,8 @@ jobs:
 
   upload-mirror:
     name: Upload to Mirror
-    needs: [upload-github, build-debug]
-    if: always() && needs.upload-github.result == 'success'
+    needs: [release, build-debug]
+    if: always() && needs.release.result == 'success'
     permissions: write-all
     runs-on: bubbles
 
@@ -120,5 +99,6 @@ jobs:
       - name: Cleanup folders
         if: always()
         run: |
+          rm -rf github-release
           rm -rf release
           rm -rf debug
